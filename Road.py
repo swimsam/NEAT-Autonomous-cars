@@ -30,12 +30,12 @@ class Road:
             new_point_y = SCREEN_HEIGHT/2
         else:
             last_point_y = self.points[l][1]
-            new_point_y = random.randint(last_point_y-150, last_point_y+150)
+            new_point_y = random.uniform(last_point_y-150, last_point_y+150)
         if new_point_y > SCREEN_HEIGHT - TRACK_WIDTH-50:
             new_point_y = SCREEN_HEIGHT - TRACK_WIDTH-50
         if new_point_y < TRACK_WIDTH+50:
             new_point_y = TRACK_WIDTH+50
-        if random.randint(0,20) == 21:
+        if random.uniform(0,20) == 21:
             self.points.append((self.points[l][0]+200,new_point_y,1))
         else:
             self.points.append((self.points[l][0]+200,new_point_y,0))
