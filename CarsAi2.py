@@ -22,10 +22,17 @@ import pickle
 
 pygame.init()
 
-RED = (200,0,0)
 FUCSIA = (255,0,255)
-YELLOW = (255,255,0)
 WHITE = (255, 255, 255)
+# Crayola 8-pack colors (approximate RGB values)
+RED = (237, 41, 57)       # Crayola Red
+ORANGE = (255, 126, 0)     # Crayola Orange
+YELLOW = (252, 233, 79)    # Crayola Yellow
+GREEN = (76, 187, 23)      # Crayola Green
+BLUE = (0, 117, 201)      # Crayola Blue
+VIOLET = (114, 62, 163)   # Crayola Violet (or Purple)
+BROWN = (150, 78, 45)     # Crayola Brown
+BLACK = (0, 0, 0)         # Crayola Black
 
 SCREEN_WIDTH = 1400
 SCREEN_HEIGHT = 700
@@ -168,7 +175,7 @@ class Car(pygame.sprite.Sprite):
             elif ( abs(self.x_velocity**2 + self.y_velocity**2)**0.5 <= 20 and abs(self.x_velocity**2 + self.y_velocity**2)**0.5 > 5):                
                 self.body_orientation -= 5
                 
-        if(self.body_orientation >= 360):
+        if(self.body_orientation > 359):
             self.body_orientation = 0
         if(self.body_orientation < 0):
             self.body_orientation += 360
@@ -216,10 +223,10 @@ class Car(pygame.sprite.Sprite):
         self.know2 = [self.rect.x + self.image.get_width(), self.rect.y + self.image.get_height()]
         self.know3 = [self.rect.x + self.image.get_width(), self.rect.y]
         self.know4 = [self.rect.x, self.rect.y + self.image.get_height()]
-       # pygame.draw.circle(SCREEN, FUCSIA, self.left_sensor, 5)
-        #pygame.draw.circle(SCREEN, FUCSIA, self.right_sensor, 5)
+        # pygame.draw.circle(SCREEN, FUCSIA, self.left_sensor, 5)
+        # pygame.draw.circle(SCREEN, FUCSIA, self.right_sensor, 5)
         
-        #pygame.draw.line(SCREEN, GREEN, self.left_sensor, (500,300))
+        # pygame.draw.line(SCREEN, RED, self.left_sensor, (500,300))
 
        
     
@@ -240,8 +247,8 @@ class Car(pygame.sprite.Sprite):
             if y > SCREEN_HEIGHT-5:
                 y = SCREEN_HEIGHT-5
         # Draw Radar
-        pygame.draw.line(SCREEN, (255, 255, 255, 255), self.rect.center, (x, y), 1)
-        #pygame.draw.circle(SCREEN, (0, 255, 0, 0), (x, y), 1)
+        pygame.draw.line(SCREEN, YELLOW, self.rect.center, (x, y), 1)
+        pygame.draw.circle(SCREEN, BLUE, (x, y), 2)
 
         dist = int(math.sqrt(math.pow(self.rect.center[0] - x, 2)
                              + math.pow(self.rect.center[1] - y, 2)))
@@ -257,8 +264,12 @@ class Car(pygame.sprite.Sprite):
         x_r = int(self.right_sensor[0])
         y_r = int(self.right_sensor[1])
        # print(x_r,x_l)
-        if (x_l < 50 or x_l < 50 or y_l < 10 or y_r < 10 or y_l > (SCREEN_HEIGHT - 15) or y_r > (SCREEN_HEIGHT - 15) or SCREEN.get_at((x_l, y_l)) == pygame.Color(2, 105, 31, 255)  or SCREEN.get_at((x_r, y_r)) == pygame.Color(2, 105, 31, 255) or ((self.rect.centerx > traf_l_pos - 55 ))) :
-            #print((self.left_sensor[0], self.left_sensor[1]))  
+        if (    x_l < 50 or x_l < 50 or y_l < 10 or y_r < 10 or
+                y_l > (SCREEN_HEIGHT - 15) or y_r > (SCREEN_HEIGHT - 15) or
+                SCREEN.get_at((x_l, y_l)) == pygame.Color(2, 105, 31, 255)  or
+                SCREEN.get_at((x_r, y_r)) == pygame.Color(2, 105, 31, 255) or
+                ((self.rect.centerx > traf_l_pos - 55 ))) :
+            print((self.left_sensor[0], self.left_sensor[1]))
             if (x_l < 50 or x_l < 50 or y_l < 10 or y_r < 10 or y_l > (SCREEN_HEIGHT - 15) or y_r > (SCREEN_HEIGHT - 15)):
                 print("BOUNDARIES")
             elif(SCREEN.get_at((x_l, y_l)) == pygame.Color(2, 105, 31, 255)  or SCREEN.get_at((x_r, y_r)) == pygame.Color(2, 105, 31, 255)):
@@ -272,11 +283,11 @@ class Car(pygame.sprite.Sprite):
         else:
             self.still = 0
         if self.still >= 30 and self.rect.centerx < 200:
-            # print("Too slow")
+            print("Too slow")
             return True
         if self.still >= 100 and self.rect.centerx >= 200:
             return True
-            #print("ahieie")
+            print("ahieie")
         return False
     
     # def detect_finishline(self):
