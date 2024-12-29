@@ -13,6 +13,7 @@ pygame.display.set_caption("Scrolling Sine Road with Car")
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
+CRAYOLA_BLUE = (31, 117, 254) #Define crayola blue
 
 # Road parameters
 AMPLITUDE = 100
@@ -21,7 +22,8 @@ SHIFT_AMOUNT = 5
 
 # Car parameters
 CAR_RADIUS = 10
-CAR_X = WIDTH // 2
+CAR_X = WIDTH // 2 #Chase car is 1/2 of the screen away
+TARGET_CAR_OFFSET = WIDTH // 4 #Target car is 1/4 of the screen away
 
 class Road:
     def __init__(self, amplitude, frequency):
@@ -76,7 +78,7 @@ class Road:
             if 0 <= x1 <= WIDTH or 0 <= x2 <= WIDTH: #Only draw lines that are on screen
                 pygame.draw.line(surface, WHITE, (x1, y1), (x2, y2), 3)
 
-class Car:
+class Car: #Red car
     def __init__(self, x, radius):
         self.x = x
         self.radius = radius
@@ -92,9 +94,39 @@ class Car:
     def draw(self, screen):
         pygame.draw.circle(screen, RED, (self.x, self.y), self.radius)
 
-# Create road and car
-road = Road(AMPLITUDE, FREQUENCY)
-car = Car(CAR_X, CAR_RADIUS)
+    def get_radar_data(self, target_car):
+        """Calculates distance and angle to the target car."""
+        dx = target_car.x - self.x
+        dy = target_car.y - self.y
+        distance = math.sqrt(dx**2 + dy**2)
+        angle = math.atan2(dy, dx) #Returns the angle in radians
+        return distance, angle
+    def update(self, road, x_offset):
+        """Updates the car's y-position based on the road."""
+        road_x = self.x + x_offset #Get the x value on the road
+        self.y = road.get_y_at_x(road_x)
+        if self.y is None:
+            self.y = HEIGHT // 2
+
+class TargetCar: #New target car class
+    def __init__(self, x, radius, color):
+        self.x = x
+        self.radius = radius
+        self.y = 0
+        self.color = color
+
+    def update(self, road, x_offset):
+        road_x = self.x + x_offset
+        self.y = road.get_y_at_x(road_x)
+        if self.y is None:
+            self.y = HEIGHT // 2
+
+    def draw(self, screen):
+        pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius)
+# Create road, car, and target car
+road = Road(AMPLITUDE, FREQUENCY) #Create the sine road
+car = Car(CAR_X, CAR_RADIUS) #Create the pursuit car
+target_car = TargetCar(CAR_X + TARGET_CAR_OFFSET, CAR_RADIUS, CRAYOLA_BLUE) #Create the target car
 
 # Game loop
 running = True
@@ -109,13 +141,19 @@ while running:
     road.shift(SHIFT_AMOUNT)
 
     car.update(road, road.x_offset)
+    target_car.update(road, road.x_offset) #Update the target car position
+    distance, angle = car.get_radar_data(target_car)
 
     # Clear the screen
     SCREEN.fill(BLACK)
 
-    # Draw the road
+    # Draw the road, car, and target car
     road.draw(SCREEN)
     car.draw(SCREEN)
+    target_car.draw(SCREEN)
+
+    # Draw the radar line
+    pygame.draw.line(SCREEN, RED, (car.x, car.y), (target_car.x, target_car.y), 2)
 
     # Update the display
     pygame.display.flip()
