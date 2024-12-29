@@ -7,16 +7,21 @@ pygame.init()
 # Screen dimensions
 WIDTH, HEIGHT = 900, 600
 SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Scrolling Sine Road")
+pygame.display.set_caption("Scrolling Sine Road with Car")
 
 # Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+RED = (255, 0, 0)
 
 # Road parameters
 AMPLITUDE = 100
 FREQUENCY = 0.02
 SHIFT_AMOUNT = 5
+
+# Car parameters
+CAR_RADIUS = 10
+CAR_X = WIDTH // 2
 
 class Road:
     def __init__(self, amplitude, frequency):
@@ -48,6 +53,19 @@ class Road:
             new_y = HEIGHT // 2 + self.amplitude * math.sin(self.frequency * new_x)
             self.points.append((new_x, new_y))  # Append with the correct absolute x
 
+
+    def get_y_at_x(self, x):
+        """Returns the y-value of the sine wave at the given x."""
+        for i in range(len(self.points) -1):
+            if self.points[i][0] <= x <= self.points[i+1][0]:
+                x1 = self.points[i][0]
+                y1 = self.points[i][1]
+                x2 = self.points[i+1][0]
+                y2 = self.points[i+1][1]
+                slope = (y2-y1)/(x2-x1)
+                return y1 + slope*(x - x1)
+        return None
+
     def draw(self, surface):
         # print(f"points = {self.points}")
         for i in range(len(self.points) - 1):
@@ -58,8 +76,25 @@ class Road:
             if 0 <= x1 <= WIDTH or 0 <= x2 <= WIDTH: #Only draw lines that are on screen
                 pygame.draw.line(surface, WHITE, (x1, y1), (x2, y2), 3)
 
-# Create sine road
+class Car:
+    def __init__(self, x, radius):
+        self.x = x
+        self.radius = radius
+        self.y = 0  # Initialize y
+
+    def update(self, road, x_offset):
+        """Updates the car's y-position based on the road."""
+        road_x = self.x + x_offset #Get the x value on the road
+        self.y = road.get_y_at_x(road_x)
+        if self.y is None:
+            self.y = HEIGHT // 2
+
+    def draw(self, screen):
+        pygame.draw.circle(screen, RED, (self.x, self.y), self.radius)
+
+# Create road and car
 road = Road(AMPLITUDE, FREQUENCY)
+car = Car(CAR_X, CAR_RADIUS)
 
 # Game loop
 running = True
@@ -73,11 +108,14 @@ while running:
     # Shift the road
     road.shift(SHIFT_AMOUNT)
 
+    car.update(road, road.x_offset)
+
     # Clear the screen
     SCREEN.fill(BLACK)
 
     # Draw the road
     road.draw(SCREEN)
+    car.draw(SCREEN)
 
     # Update the display
     pygame.display.flip()

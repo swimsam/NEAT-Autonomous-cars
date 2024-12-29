@@ -4,3 +4,4 @@ __pycache__/
 hold_snipets/
 *.odt
 *.p
+tmp.py
