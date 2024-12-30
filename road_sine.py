@@ -1,4 +1,6 @@
 import pygame
+import neat
+import os
 import math
 
 # Initialize Pygame
@@ -11,9 +13,15 @@ pygame.display.set_caption("Scrolling Sine Road with Car")
 
 # Colors
 WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-CRAYOLA_BLUE = (31, 117, 254) #Define crayola blue
+# Crayola 8-pack colors (approximate RGB values)
+RED = (237, 41, 57)       # Crayola Red
+ORANGE = (255, 126, 0)     # Crayola Orange
+YELLOW = (252, 233, 79)    # Crayola Yellow
+GREEN = (76, 187, 23)      # Crayola Green
+CRAYOLA_BLUE = (0, 117, 201)      # Crayola CRAYOLA_BLUE
+VIOLET = (114, 62, 163)   # Crayola Violet (or Purple)
+BROWN = (150, 78, 45)     # Crayola Brown
+BLACK = (0, 0, 0)         # Crayola Black
 
 # Road parameters
 AMPLITUDE = 100
@@ -81,32 +89,46 @@ class Road:
 class Car: #Red car
     def __init__(self, x, radius):
         self.x = x
+        self.dx = 0
         self.radius = radius
-        self.y = 0  # Initialize y
+        self.y = HEIGHT // 2 # Initialize y
+        self.dy = 0
+        self.velocity = 5  # New attribute to track vertical speed
+        self.alive = True
+        self.angle = 0
+        self.distance = 0
 
-    def update(self, road, x_offset):
-        """Updates the car's y-position based on the road."""
+    def update(self, action, road, x_offset):
+        """Update the car's y-position based on NEAT output."""
+        if not self.alive:
+            return
+        # 
+        if action[0] > action[1]:
+            self.velocity -= 5  # Move up
+        elif action[1] > action[0]:
+            self.velocity += 5  # Move down
+
+        self.y += self.velocity  # Update position based on velocity
+
         road_x = self.x + x_offset #Get the x value on the road
-        self.y = road.get_y_at_x(road_x)
-        if self.y is None:
-            self.y = HEIGHT // 2
+        road_y = road.get_y_at_x(road_x)
+
+        if road_y is None or abs(self.y - road_y) > AMPLITUDE*2.5 or self.y < 0 or self.y > HEIGHT:
+            self.alive = False
 
     def draw(self, screen):
-        pygame.draw.circle(screen, RED, (self.x, self.y), self.radius)
+        if not self.alive:
+            pygame.draw.circle(screen, CRAYOLA_BLUE, (self.x, self.y), self.radius)
+        else:
+            pygame.draw.circle(screen, RED, (self.x, self.y), self.radius)
 
     def get_radar_data(self, target_car):
         """Calculates distance and angle to the target car."""
-        dx = target_car.x - self.x
-        dy = target_car.y - self.y
-        distance = math.sqrt(dx**2 + dy**2)
-        angle = math.atan2(dy, dx) #Returns the angle in radians
-        return distance, angle
-    def update(self, road, x_offset):
-        """Updates the car's y-position based on the road."""
-        road_x = self.x + x_offset #Get the x value on the road
-        self.y = road.get_y_at_x(road_x)
-        if self.y is None:
-            self.y = HEIGHT // 2
+        self.dx = target_car.x - self.x
+        self.dy = target_car.y - self.y
+        self.distance = math.sqrt(self.dx ** 2 + self.dy ** 2)
+        self.angle = math.atan2(self.dy, self.dx) #Returns the angle in radians
+        return self.distance, self.angle
 
 class TargetCar: #New target car class
     def __init__(self, x, radius, color):
@@ -132,31 +154,131 @@ target_car = TargetCar(CAR_X + TARGET_CAR_OFFSET, CAR_RADIUS, CRAYOLA_BLUE) #Cre
 running = True
 clock = pygame.time.Clock()
 
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+# Main NEAT evaluation function
+def eval_genomes(genomes, config):
 
-    # Shift the road
-    road.shift(SHIFT_AMOUNT)
+    road = Road(AMPLITUDE, FREQUENCY)
+    target_car = TargetCar(CAR_X + TARGET_CAR_OFFSET, CAR_RADIUS, CRAYOLA_BLUE)
 
-    car.update(road, road.x_offset)
-    target_car.update(road, road.x_offset) #Update the target car position
-    distance, angle = car.get_radar_data(target_car)
+    cars = []
+    nets = []
+    ge = []
 
-    # Clear the screen
-    SCREEN.fill(BLACK)
+    # Initialize cars, genomes, and networks
+    for genome_id, genome in genomes:
+        genome.fitness = 0
+        net = neat.nn.FeedForwardNetwork.create(genome, config)
+        nets.append(net)
+        car = Car(CAR_X, CAR_RADIUS)
+        car.get_radar_data(target_car)
+        cars.append(car)
+        ge.append(genome)
 
-    # Draw the road, car, and target car
-    road.draw(SCREEN)
-    car.draw(SCREEN)
-    target_car.draw(SCREEN)
+    run = True
+    first_pass = False
+    clock = pygame.time.Clock()
 
-    # Draw the radar line
-    pygame.draw.line(SCREEN, RED, (car.x, car.y), (target_car.x, target_car.y), 2)
+    while run and any(car.alive for car in cars):
+        # Shift the road
+        road.shift(SHIFT_AMOUNT)
 
-    # Update the display
-    pygame.display.flip()
-    clock.tick(30)
+        target_car.update(road, road.x_offset)  # Update the target car position
 
-pygame.quit()
+        for i, car in enumerate(cars):
+            if not car.alive:
+                continue
+            else:
+                car.get_radar_data(target_car) #Gets the target car vector angle and magnitue
+
+
+        # Clear the screen
+        SCREEN.fill(BLACK)
+
+        # Draw the road, car, and target car
+        road.draw(SCREEN)
+        target_car.draw(SCREEN)
+
+        # Update each car
+        for i, car in enumerate(cars):
+            if not car.alive:
+                continue
+
+            # Inputs for the NEAT network
+            car_x_on_road = car.x
+            car_y_on_road = road.get_y_at_x(car_x_on_road)
+            if car_y_on_road is None:
+                car_y_on_road = 0
+            distance_to_target_car = car.distance
+            angle_to_target_car = car.angle
+            # print(f"car_x_on_road = {car_x_on_road}")
+            # print(f"car_y_on_road = {car_y_on_road}")
+            cars_speed = car.velocity
+
+            distance_to_road = car_y_on_road - car.y
+
+            inputs = [
+                angle_to_target_car,  #  angle of vector from car to target car
+                distance_to_target_car,  #  length of vector
+                distance_to_road,  #  vertical distance between car and road, sims another radar
+                cars_speed
+            ]
+
+            output = nets[i].activate(inputs)
+            car.update(output,road, road.x_offset)
+
+            y_on_road = road.get_y_at_x(car.x + road.x_offset)
+            if y_on_road is not None:
+                distance_from_road = abs(car.y - y_on_road)
+                if distance_from_road < 10:
+                    ge[i].fitness += 1
+                elif distance_from_road > 10:
+                    ge[i].fitness -= 2
+                if abs(cars_speed) < 1:
+                    ge[i].fitness -= 3
+                if car_y_on_road == car.y:
+                    ge[i].fitness += 5
+                # else:
+                #     ge[i].fitness -= distance_from_road / 10
+            else:
+                ge[i].fitness -= 100
+                run = False
+                break
+             # Update fitness
+            ge[i].fitness = distance_to_road
+            # print(f"ge[i].fitness += {ge[i].fitness}")
+            # Draw the car
+            car.draw(SCREEN)
+            pygame.draw.line(SCREEN, RED, (car.x, car.y), (target_car.x, target_car.y), 2)
+
+        pygame.display.flip()
+        clock.tick(30)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+                pygame.quit()
+                exit()
+
+# Configuration for NEAT
+def run_neat(config_path):
+    config = neat.config.Config(
+        neat.DefaultGenome,
+        neat.DefaultReproduction,
+        neat.DefaultSpeciesSet,
+        neat.DefaultStagnation,
+        config_path
+    )
+
+    population = neat.Population(config)
+    population.add_reporter(neat.StdOutReporter(True))
+    stats = neat.StatisticsReporter()
+    population.add_reporter(stats)
+
+    winner = population.run(eval_genomes, 50)
+    print("\nBest genome:\n", winner)
+
+
+if __name__ == "__main__":
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, "config-feedforward.txt")
+    run_neat(config_path)
