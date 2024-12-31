@@ -6,3 +6,4 @@ hold_snipets/
 *.p
 tmp*.py
 *tmp*.txt
+.~lock*
