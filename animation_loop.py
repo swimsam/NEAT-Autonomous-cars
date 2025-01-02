@@ -134,6 +134,168 @@ class TargetCar: #New target car class
     def draw(self, screen):
         pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius)
 
+class Car:  # Red car
+    def __init__(self, x, radius):
+        self.x = x
+        self.y = HEIGHT // 2  # Initialize y
+        self.dx = 0
+        self.dy = 0  # Future use
+        self.radius = radius
+        self.velocity = 5
+        self.alive = True
+        self.angle = 0
+        self.distance = 0
+        self.radar_data = []
+        self.show_radar = True  # Flag to control radar beam visibility
+
+    def update_test(self, road, x_offset):
+        road_x = self.x + x_offset
+        self.y = road.get_y_at_x(road_x)
+        if self.y is None:
+            self.y = HEIGHT // 2
+
+    def update(self, action, road, x_offset):
+        if not self.alive:
+            return
+
+        if len(action) >= 3:
+            up, down, hold = action
+            if up > down and up > hold:
+                self.y -= self.velocity
+            elif down > up and down > hold:
+                self.y += self.velocity
+
+        road_x = self.x + x_offset
+        road_y = road.get_y_at_x(road_x)
+
+        if road_y is None:
+            self.alive = False
+            print("Car went off-road: No road_y found.")
+        elif abs(self.y - road_y) > AMPLITUDE * 2.5:
+            self.alive = False
+            print(f"Car too far from road: y={self.y}, road_y={road_y}")
+        elif self.y < 0 or self.y > HEIGHT:
+            self.alive = False
+            print(f"Car out of bounds: y={self.y}")
+
+    def draw(self, screen):
+        color = CRAYOLA_BLUE if not self.alive else RED
+        pygame.draw.circle(screen, color, (self.x, self.y), self.radius)
+
+        if self.show_radar:
+            self.draw_radar(screen)
+
+
+    def get_radar_data(self, road, num_beams=10):
+        """Calculates distance and angle to the road edges and stores radar data."""
+        self.radar_data = []
+        for i in range(num_beams):
+            angle = (i / num_beams) * 2 * math.pi
+            ray_length = 0
+            ray_x, ray_y = self.x, self.y
+
+            while ray_length < 200:  # Maximum range
+                ray_x += math.cos(angle)
+                ray_y += math.sin(angle)
+                ray_length += 1
+
+                # Check intersections
+                intersect_top = self.find_intersection(self.x, self.y, ray_x, ray_y, road.top_points, road.x_offset)
+                intersect_bottom = self.find_intersection(self.x, self.y, ray_x, ray_y, road.bottom_points, road.x_offset)
+
+                if intersect_top is not None:
+                    dist = math.sqrt((intersect_top[0] - self.x) ** 2 + (intersect_top[1] - self.y) ** 2)
+                    self.radar_data.append((angle, dist))
+                    break  # Stop checking after the first intersection
+
+                if intersect_bottom is not None:
+                    dist = math.sqrt((intersect_bottom[0] - self.x) ** 2 + (intersect_bottom[1] - self.y) ** 2)
+                    self.radar_data.append((angle, dist))
+                    break
+
+            else:
+                # If no intersection, append max range
+                self.radar_data.append((angle, 200))
+
+        return self.radar_data
+
+    def draw_radar(self, screen):
+        """Visualize the radar beams on the screen."""
+        for angle, dist in self.radar_data:
+            end_x = self.x + dist * math.cos(angle)
+            end_y = self.y + dist * math.sin(angle)
+            pygame.draw.line(screen, GREEN, (self.x, self.y), (end_x, end_y), 1)
+            pygame.draw.circle(screen, RED, (int(end_x), int(end_y)), 2)  # Mark intersection point
+
+    def find_intersection(self, x1, y1, x2, y2, points, x_offset):
+        # Calculate the x-range of interest
+        min_x = min(x1, x2) - AMPLITUDE
+        max_x = max(x1, x2) + AMPLITUDE
+
+        # Filter points to those within the x-range
+        relevant_points = [
+            (points[i], points[i + 1])
+            for i in range(len(points) - 1)
+            if min_x <= points[i][0] - x_offset <= max_x or min_x <= points[i + 1][0] - x_offset <= max_x
+        ]
+
+        # Check for intersections only within the narrowed points
+        for p1, p2 in relevant_points:
+            x3 = p1[0] - x_offset
+            y3 = p1[1]
+            x4 = p2[0] - x_offset
+            y4 = p2[1]
+
+            denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
+            if denom == 0:
+                continue
+
+            ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom
+            ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom
+
+            if 0 <= ua <= 1 and 0 <= ub <= 1:
+                x = x1 + ua * (x2 - x1)
+                y = y1 + ua * (y2 - y1)
+                return x, y
+
+        return None
+
+    def find_intersectionx(self, x1, y1, x2, y2, points, x_offset):
+        # Define the maximum x-range for searching based on wavelength and radar angle
+        max_x = max(x1, x2)
+        min_x = min(x1, x2)
+
+        # Allow a small buffer to account for beam spread
+        buffer = 10  # You can adjust this based on the scenario
+        search_range = (max(0, min_x - buffer), max_x + buffer)
+
+        # Filter points within the x-range
+        filtered_points = [
+            points[i] for i in range(len(points) - 1)
+            if search_range[0] <= points[i][0] - x_offset <= search_range[1]
+        ]
+
+        for i in range(len(filtered_points) - 1):
+            x3 = filtered_points[i][0] - x_offset
+            y3 = filtered_points[i][1]
+            x4 = filtered_points[i + 1][0] - x_offset
+            y4 = filtered_points[i + 1][1]
+
+            denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
+            if denom == 0:
+                continue  # Lines are parallel
+
+            ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom
+            ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom
+
+            if 0 <= ua <= 1 and 0 <= ub <= 1:
+                x = x1 + ua * (x2 - x1)
+                y = y1 + ua * (y2 - y1)
+                return x, y
+
+        return None
+
+
 # Initialize Pygame
 pygame.init()
 
@@ -144,7 +306,7 @@ pygame.display.set_caption("Scrolling Sine Road with Car")
 # Create a road object
 road = Road(AMPLITUDE, FREQUENCY)
 target_car = TargetCar(CAR_X + TARGET_CAR_OFFSET, CAR_RADIUS, CRAYOLA_BLUE)
-
+car = Car(CAR_X, CAR_RADIUS)
 # Game loop
 clock = pygame.time.Clock()
 running = True
@@ -154,6 +316,8 @@ while running:
     road.shift(SHIFT_AMOUNT)
 
     target_car.update(road, road.x_offset)  # Update the target car position
+    car.update_test(road, road.x_offset)  # Update the target car position
+    car.get_radar_data(road)
 
     # Clear the screen
     SCREEN.fill(BLACK)
@@ -161,6 +325,7 @@ while running:
     # Draw the road, car, and target car
     road.draw(SCREEN)
     target_car.draw(SCREEN)
+    car.draw(SCREEN)
 
     # Update the display
     pygame.display.flip()
